@@ -48,6 +48,28 @@ const CATEGORY_LABELS: Record<string, string> = {
   lifestyle: "ライフスタイル",
 };
 
+const CATEGORY_GRADIENTS: Record<string, string> = {
+  work: "from-blue-400 to-blue-600",
+  hobbies: "from-emerald-400 to-teal-600",
+  romance: "from-pink-400 to-rose-600",
+  housework: "from-amber-400 to-orange-600",
+  food: "from-red-400 to-orange-500",
+  goals: "from-violet-400 to-purple-600",
+  personality: "from-cyan-400 to-blue-500",
+  lifestyle: "from-indigo-400 to-violet-500",
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  work: "\uD83D\uDCBC",
+  hobbies: "\uD83C\uDFA8",
+  romance: "\u2764\uFE0F",
+  housework: "\uD83C\uDFE0",
+  food: "\uD83C\uDF7D\uFE0F",
+  goals: "\uD83C\uDFAF",
+  personality: "\u2728",
+  lifestyle: "\uD83C\uDF3F",
+};
+
 function SuggestContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -319,15 +341,19 @@ function SuggestContent() {
             <div className="text-5xl">&#x1F389;</div>
             <h1 className="text-xl font-bold">予定が決まりました！</h1>
             <div className="rounded-xl border border-indigo-200 bg-indigo-50 overflow-hidden text-left">
-              {state.accepted.image_url && (
-                <div className="w-full h-48 overflow-hidden">
+              <div className="w-full h-48 overflow-hidden">
+                {state.accepted.image_url ? (
                   <img
                     src={state.accepted.image_url}
                     alt={state.accepted.title}
                     className="w-full h-full object-cover"
                   />
-                </div>
-              )}
+                ) : (
+                  <div className={`w-full h-full bg-gradient-to-br ${CATEGORY_GRADIENTS[category] || "from-gray-400 to-gray-600"} flex items-center justify-center`}>
+                    <span className="text-5xl opacity-80">{CATEGORY_ICONS[category] || "\uD83D\uDCCC"}</span>
+                  </div>
+                )}
+              </div>
               <div className="p-6 space-y-3">
                 <h2 className="font-bold text-indigo-900">
                   {state.accepted.title}
@@ -585,15 +611,19 @@ function SuggestContent() {
                   {/* Expandable detail */}
                   {isExpanded && (
                     <div className="border-t border-gray-100">
-                      {s.image_url && (
-                        <div className="w-full h-44 overflow-hidden">
+                      <div className="w-full h-44 overflow-hidden">
+                        {s.image_url ? (
                           <img
                             src={s.image_url}
                             alt={s.title}
                             className="w-full h-full object-cover"
                           />
-                        </div>
-                      )}
+                        ) : (
+                          <div className={`w-full h-full bg-gradient-to-br ${CATEGORY_GRADIENTS[category] || "from-gray-400 to-gray-600"} flex items-center justify-center`}>
+                            <span className="text-4xl opacity-80">{CATEGORY_ICONS[category] || "\uD83D\uDCCC"}</span>
+                          </div>
+                        )}
+                      </div>
                       <div className="px-5 py-4 space-y-3">
                         {s.description && (
                           <p className="text-sm text-gray-600">{s.description}</p>

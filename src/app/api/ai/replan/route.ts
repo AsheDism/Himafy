@@ -108,9 +108,10 @@ export async function POST(request: Request) {
     .update({ attempt_count: newAttempt, updated_at: new Date().toISOString() })
     .eq("id", session.id);
 
-  // Fetch images for suggestions
+  // Fetch images for suggestions (with category fallback)
   const imageUrls = await getImageUrls(
-    result.suggestions.map((s) => s.imageSearchQuery)
+    result.suggestions.map((s) => s.imageSearchQuery),
+    session.category_slug
   );
 
   // Save new suggestions

@@ -92,9 +92,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // Fetch images for suggestions
+  // Fetch images for suggestions (with category fallback)
   const imageUrls = await getImageUrls(
-    result.suggestions.map((s) => s.imageSearchQuery)
+    result.suggestions.map((s) => s.imageSearchQuery),
+    parsed.data.categorySlug
   );
 
   // Save suggestions

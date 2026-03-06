@@ -76,8 +76,8 @@ export async function POST(request: Request) {
     );
   }
 
-  // Fetch image
-  const imageUrl = await getImageUrl(s.imageSearchQuery);
+  // Fetch image (with category fallback)
+  const imageUrl = await getImageUrl(s.imageSearchQuery, categorySlug);
 
   // Save to DB
   const { data: suggestion, error: sugError } = await supabase
