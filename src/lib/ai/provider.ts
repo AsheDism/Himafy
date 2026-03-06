@@ -42,6 +42,7 @@ export interface AiGenerateParams {
   excludeTitles?: string[];
   freeSlots?: FreeSlot[];
   feedbackContext?: FeedbackContext;
+  variationHint?: string;
 }
 
 export interface AiProvider {

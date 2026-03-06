@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -29,11 +29,13 @@ type Suggestion = {
 
 type SuggestState = {
   sessionId: string | null;
-  suggestions: Suggestion[];
-  loading: boolean;
+  suggestions: (Suggestion | null)[];
+  loadingSlots: boolean[];
   error: string | null;
   accepted: Suggestion | null;
 };
+
+const SUGGESTION_COUNT = 3;
 
 const CATEGORY_LABELS: Record<string, string> = {
   work: "仕事",
@@ -54,8 +56,8 @@ function SuggestContent() {
 
   const [state, setState] = useState<SuggestState>({
     sessionId: null,
-    suggestions: [],
-    loading: true,
+    suggestions: Array(SUGGESTION_COUNT).fill(null),
+    loadingSlots: Array(SUGGESTION_COUNT).fill(true),
     error: null,
     accepted: null,
   });
@@ -66,6 +68,7 @@ function SuggestContent() {
   const [showTagModal, setShowTagModal] = useState(false);
   const [relatedTags, setRelatedTags] = useState<{ slug: string; displayName: string }[]>([]);
   const [addingTags, setAddingTags] = useState(false);
+  const excludeTitlesRef = useRef<string[]>([]);
 
   useEffect(() => {
     async function checkCalendar() {
@@ -82,69 +85,115 @@ function SuggestContent() {
     checkCalendar();
   }, []);
 
-  const fetchSuggestions = useCallback(async () => {
-    setState((s) => ({ ...s, loading: true, error: null }));
+  const fetchSuggestionsParallel = useCallback(async (excludeTitles: string[] = []) => {
+    setState((s) => ({
+      ...s,
+      suggestions: Array(SUGGESTION_COUNT).fill(null),
+      loadingSlots: Array(SUGGESTION_COUNT).fill(true),
+      error: null,
+    }));
     setExpandedId(null);
+    excludeTitlesRef.current = excludeTitles;
 
-    const res = await fetch("/api/ai/suggest", {
+    // Step 1: Create session and get user tags
+    const initRes = await fetch("/api/ai/suggest-init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categorySlug: category, count: 3 }),
+      body: JSON.stringify({ categorySlug: category }),
     });
 
-    if (!res.ok) {
-      const json = await res.json();
+    if (!initRes.ok) {
+      const json = await initRes.json();
       setState((s) => ({
         ...s,
-        loading: false,
-        error: json.error || "提案の生成に失敗しました",
+        loadingSlots: Array(SUGGESTION_COUNT).fill(false),
+        error: json.error || "セッションの作成に失敗しました",
       }));
       return;
     }
 
-    const json = await res.json();
-    setState({
-      sessionId: json.data.session.id,
-      suggestions: json.data.suggestions,
-      loading: false,
-      error: null,
-      accepted: null,
+    const initJson = await initRes.json();
+    const { session, userTags, variationHints } = initJson.data as {
+      session: { id: string };
+      userTags: string[];
+      variationHints: string[];
+    };
+
+    setState((s) => ({ ...s, sessionId: session.id }));
+
+    const promises = Array.from({ length: SUGGESTION_COUNT }, (_, i) => {
+      const allExcludes = [...excludeTitles];
+
+      return fetch("/api/ai/suggest-one", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.id,
+          categorySlug: category,
+          userTags,
+          excludeTitles: allExcludes,
+          index: i,
+          variationHint: variationHints?.[i],
+        }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const json = await res.json();
+            throw new Error(json.error || "提案の生成に失敗しました");
+          }
+          const json = await res.json();
+          const suggestion = json.data.suggestion as Suggestion;
+          const idx = json.data.index as number;
+
+          // Update state progressively
+          setState((prev) => {
+            const newSuggestions = [...prev.suggestions];
+            const newLoading = [...prev.loadingSlots];
+            newSuggestions[idx] = suggestion;
+            newLoading[idx] = false;
+            return { ...prev, suggestions: newSuggestions, loadingSlots: newLoading };
+          });
+
+          // Track title for dedup
+          excludeTitlesRef.current = [...excludeTitlesRef.current, suggestion.title];
+          return suggestion;
+        })
+        .catch((err) => {
+          // Mark this slot as failed but don't block others
+          setState((prev) => {
+            const newLoading = [...prev.loadingSlots];
+            newLoading[i] = false;
+            return { ...prev, loadingSlots: newLoading };
+          });
+          console.error(`Suggestion ${i} failed:`, err);
+          return null;
+        });
     });
+
+    const results = await Promise.all(promises);
+
+    // If all failed, show error
+    if (results.every((r) => r === null)) {
+      setState((s) => ({
+        ...s,
+        error: "提案の生成に失敗しました。もう一度お試しください。",
+      }));
+    }
   }, [category]);
 
   useEffect(() => {
-    fetchSuggestions();
-  }, [fetchSuggestions]);
+    fetchSuggestionsParallel();
+  }, [fetchSuggestionsParallel]);
 
   async function handleReplan() {
     if (!state.sessionId) return;
-
-    setState((s) => ({ ...s, loading: true, error: null }));
-    setExpandedId(null);
-
-    const res = await fetch("/api/ai/replan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: state.sessionId, count: 3 }),
-    });
-
-    if (!res.ok) {
-      const json = await res.json();
-      setState((s) => ({
-        ...s,
-        loading: false,
-        error: json.error || "再提案に失敗しました",
-      }));
-      return;
-    }
-
-    const json = await res.json();
-    setState((s) => ({
-      ...s,
-      suggestions: json.data.suggestions,
-      loading: false,
-      error: null,
-    }));
+    const currentTitles = state.suggestions
+      .filter((s): s is Suggestion => s !== null)
+      .map((s) => s.title);
+    const allExcludes = [...excludeTitlesRef.current, ...currentTitles];
+    // Deduplicate
+    const uniqueExcludes = [...new Set(allExcludes)];
+    await fetchSuggestionsParallel(uniqueExcludes);
   }
 
   const [accepting, setAccepting] = useState(false);
@@ -163,7 +212,6 @@ function SuggestContent() {
       // Check for related tags to suggest
       const tagSlugs = suggestion.ai_raw_response?.relatedTagSlugs || [];
       if (tagSlugs.length > 0) {
-        // Fetch tag display names and check which ones the user doesn't have yet
         const { data: existingTags } = await supabase
           .from("user_tags")
           .select("tags(slug)")
@@ -203,7 +251,6 @@ function SuggestContent() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddingTags(false); return; }
 
-    // Get tag IDs
     const { data: tags } = await supabase
       .from("tags")
       .select("id, slug")
@@ -253,13 +300,17 @@ function SuggestContent() {
     }
   }
 
-  const steps = (s: Suggestion) => s.ai_raw_response?.steps || [];
-  const timeSlot = (s: Suggestion) => s.ai_raw_response?.timeSlot || null;
+  const getSteps = (s: Suggestion) => s.ai_raw_response?.steps || [];
+  const getTimeSlot = (s: Suggestion) => s.ai_raw_response?.timeSlot || null;
+
+  const isAllLoading = state.loadingSlots.every((l) => l);
+  const isAnyLoading = state.loadingSlots.some((l) => l);
+  const loadedSuggestions = state.suggestions.filter((s): s is Suggestion => s !== null);
 
   // Accepted state
   if (state.accepted) {
-    const acceptedSteps = steps(state.accepted);
-    const acceptedTimeSlot = timeSlot(state.accepted);
+    const acceptedSteps = getSteps(state.accepted);
+    const acceptedTimeSlot = getTimeSlot(state.accepted);
 
     return (
       <div className="min-h-screen bg-gray-50 pb-bottom-nav">
@@ -424,7 +475,7 @@ function SuggestContent() {
                 </Link>
                 <button
                   onClick={() => {
-                    setState({ sessionId: null, suggestions: [], loading: false, error: null, accepted: null });
+                    setState({ sessionId: null, suggestions: Array(SUGGESTION_COUNT).fill(null), loadingSlots: Array(SUGGESTION_COUNT).fill(false), error: null, accepted: null });
                     router.push("/dashboard");
                   }}
                   className="flex-1 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-medium text-indigo-600 text-center hover:bg-indigo-100"
@@ -459,16 +510,11 @@ function SuggestContent() {
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-6 space-y-3">
-        {state.loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-r-transparent" />
-            <p className="text-gray-500 text-sm mt-4">AIが提案を考えています...</p>
-          </div>
-        ) : state.error ? (
+        {state.error && !isAnyLoading && loadedSuggestions.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-red-600 text-sm">{state.error}</p>
             <button
-              onClick={fetchSuggestions}
+              onClick={() => fetchSuggestionsParallel()}
               className="mt-4 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
               再試行
@@ -476,18 +522,43 @@ function SuggestContent() {
           </div>
         ) : (
           <>
-            <p className="text-sm text-gray-500 text-center">
-              タップして詳細を確認しましょう
-            </p>
+            {isAllLoading ? (
+              <div className="text-center py-4">
+                <p className="text-gray-500 text-sm">AIが提案を考えています...</p>
+              </div>
+            ) : loadedSuggestions.length > 0 && (
+              <p className="text-sm text-gray-500 text-center">
+                タップして詳細を確認しましょう
+              </p>
+            )}
 
-            {state.suggestions.map((s) => {
+            {state.suggestions.map((s, slotIndex) => {
+              // Loading skeleton for this slot
+              if (s === null) {
+                if (!state.loadingSlots[slotIndex]) return null; // failed slot
+                return (
+                  <div
+                    key={`loading-${slotIndex}`}
+                    className="rounded-xl border border-gray-200 bg-white overflow-hidden animate-pulse"
+                  >
+                    <div className="px-5 py-4 flex items-center gap-3">
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-3/4" />
+                        <div className="h-3 bg-gray-100 rounded w-1/2" />
+                      </div>
+                      <div className="h-8 w-8 rounded-full border-3 border-indigo-600 border-r-transparent animate-spin" />
+                    </div>
+                  </div>
+                );
+              }
+
               const isExpanded = expandedId === s.id;
-              const sSteps = steps(s);
-              const sTimeSlot = timeSlot(s);
+              const sSteps = getSteps(s);
+              const sTimeSlot = getTimeSlot(s);
               return (
                 <div
                   key={s.id}
-                  className="rounded-xl border border-gray-200 bg-white overflow-hidden transition-all"
+                  className="rounded-xl border border-gray-200 bg-white overflow-hidden transition-all animate-in fade-in slide-in-from-bottom-2 duration-300"
                 >
                   {/* Title row - always visible */}
                   <button
@@ -600,10 +671,10 @@ function SuggestContent() {
             {/* Replan button */}
             <button
               onClick={handleReplan}
-              disabled={state.loading || !state.sessionId}
+              disabled={isAnyLoading || !state.sessionId}
               className="w-full rounded-md border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              他の提案を見る
+              {isAnyLoading ? "生成中..." : "他の提案を見る"}
             </button>
           </>
         )}
