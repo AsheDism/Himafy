@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx next build)",
+      "Bash(set -a)",
+      "Bash(source .env.local)",
+      "Bash(set +a)",
+      "Bash(node -e \":*)",
+      "Bash(npm ls pg)",
+      "Bash(npm ls postgres)"
+    ]
+  }
+}

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Himafy PM修正指示書 — 企画書乖離の解消</title>
+<style>
+  :root { --primary: #4f46e5; --bg: #f8fafc; --card: #fff; --border: #e2e8f0; --text: #1e293b; --muted: #64748b; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue','Hiragino Sans',sans-serif; background: var(--bg); color: var(--text); line-height: 1.75; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 48px 28px; }
+
+  /* Header */
+  .header { margin-bottom: 48px; }
+  .header h1 { font-size: 26px; margin-bottom: 4px; }
+  .header .meta { font-size: 13px; color: var(--muted); }
+
+  /* PM Note */
+  .pm-note { background: linear-gradient(135deg, #eef2ff, #e0e7ff); border-left: 4px solid var(--primary); border-radius: 0 12px 12px 0; padding: 20px 24px; margin-bottom: 40px; font-size: 14px; }
+  .pm-note h3 { font-size: 15px; color: var(--primary); margin-bottom: 8px; }
+
+  /* Dependency Graph */
+  .dep-graph { background: #1e293b; color: #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 40px; font-family: 'Fira Code',monospace; font-size: 12px; white-space: pre; line-height: 1.6; overflow-x: auto; }
+  .dep-graph .highlight { color: #818cf8; font-weight: 700; }
+  .dep-graph .arrow { color: #f59e0b; }
+  .dep-graph .done { color: #22c55e; }
+  .dep-graph .dim { color: #64748b; }
+
+  /* Phase */
+  .phase { margin-bottom: 48px; }
+  .phase-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .phase-label { background: var(--primary); color: #fff; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; }
+  .phase-title { font-size: 20px; font-weight: 700; }
+  .phase-desc { font-size: 13px; color: var(--muted); margin-left: auto; }
+
+  /* Task Card */
+  .task { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+  .task-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .task-id { background: #f1f5f9; padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--primary); font-family: monospace; }
+  .task-title { font-size: 16px; font-weight: 700; flex: 1; }
+  .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .b-gap { background: #fef2f2; color: #b91c1c; }
+  .b-spec { background: #eff6ff; color: #1d4ed8; }
+  .b-effort { background: #f5f3ff; color: #6d28d9; }
+  .b-impact { background: #fefce8; color: #854d0e; }
+  .task-section { margin-bottom: 14px; }
+  .task-section h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+  .task-section p, .task-section li { font-size: 14px; }
+  .task-section ul { padding-left: 20px; }
+  .task-section li { margin-bottom: 4px; }
+
+  /* Code */
+  .code { background: #1e1e2e; color: #cdd6f4; padding: 14px; border-radius: 8px; font-family: 'Fira Code','Consolas',monospace; font-size: 12px; overflow-x: auto; white-space: pre; margin: 8px 0; line-height: 1.5; }
+  .code .cm { color: #6c7086; }
+  .code .kw { color: #cba6f7; }
+  .code .st { color: #a6e3a1; }
+  .code .fn { color: #89b4fa; }
+  .code .at { color: #f9e2af; }
+
+  /* Acceptance Criteria */
+  .ac { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-top: 8px; }
+  .ac h4 { color: #15803d; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .ac li { font-size: 13px; margin-bottom: 3px; }
+  .ac li::marker { color: #22c55e; }
+
+  /* Risk */
+  .risk { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 16px; margin-top: 8px; }
+  .risk h4 { color: #c2410c; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .risk p { font-size: 13px; }
+
+  /* Summary */
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  .summary-table th { background: #1e293b; color: #fff; padding: 8px 12px; text-align: left; }
+  .summary-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .summary-table tr:nth-child(even) { background: #f8fafc; }
+
+  .check { color: #22c55e; } .cross { color: #ef4444; } .warn { color: #f59e0b; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="header">
+  <h1>Himafy 修正指示書（PM Directive）</h1>
+  <div class="meta">発行: 2026/03/07 | 対象: 企画書v6との乖離解消（課金機能を除く）| 想定期間: 3スプリント（約3週間）</div>
+</div>
+
+<!-- ===== PM判断ノート ===== -->
+<div class="pm-note">
+  <h3>PM判断：なぜこの順番で切り込むのか</h3>
+  <p>企画書との乖離は10件以上ありますが、すべてを同時に直すのではなく「ユーザーが触った瞬間に感じる価値」を基準に優先順位をつけました。</p>
+  <p style="margin-top:8px;">Himafyの核心的価値は「AIが"実行可能な"予定を提案してくれること」です。現状のサイトでは提案が抽象的すぎて、ユーザーが「これは自分の暇な時間に本当にできそう」と感じられません。ここが崩れていると、どれだけ機能を足しても定着しません。</p>
+  <p style="margin-top:8px;">したがって、<strong>Sprint 1では「提案の質」と「フィードバックループ」に全振り</strong>します。位置情報やPWAは重要ですが、まず提案の骨格が企画書の想定レベルに達しないと、その上に何を積んでも意味がありません。</p>
+  <p style="margin-top:8px;">Sprint 2で「位置情報×天気」を入れることで企画書のコア差別化を実現し、Sprint 3でPWA・通知・UX改善で仕上げます。</p>
+</div>
+
+<!-- ===== 依存関係図 ===== -->
+<div class="dep-graph">
+<span class="dim">── 機能間の依存関係とスプリント配置 ──</span>
+
+<span class="highlight">Sprint 1: 提案の骨格を企画書レベルに</span>
+  ┌──────────────────┐
+  │ <span class="done">T-1</span> AI提案プロンプト改善  │──┐
+  │  (時間帯+場所+ステップ)  │  │
+  └──────────────────┘  │  ┌───────────────────┐
+                          ├─→│ <span class="done">T-3</span> 予定→タグ追加フロー  │
+  ┌──────────────────┐  │  │  (フィードバックループ)  │
+  │ <span class="done">T-2</span> Calendar空き時間反映 │──┘  └───────────────────┘
+  │  (提案に実時間を含める)  │          │
+  └──────────────────┘          ↓
+                          ┌───────────────────┐
+                          │ <span class="done">T-4</span> FB学習の可視化     │
+                          │  (次回提案へ反映)     │
+                          └───────────────────┘
+
+<span class="highlight">Sprint 2: 企画書のコア差別化を実現</span>
+  ┌──────────────────┐     ┌───────────────────┐
+  │ <span class="done">T-5</span> 居住地の入力UI    │──→│ <span class="done">T-7</span> 提案への位置情報統合 │
+  │  (設定+オンボーディング)│     │  (生活圏の施設・店名)  │
+  └──────────────────┘     └───────────────────┘
+  ┌──────────────────┐          ↑
+  │ <span class="done">T-6</span> 天気API連携      │──────┘
+  │  (Weather API取得)    │
+  └──────────────────┘
+
+<span class="highlight">Sprint 3: 配信基盤とUX仕上げ</span>
+  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+  │ <span class="done">T-8</span> PWA対応    │  │ <span class="done">T-9</span> Push通知  │  │ <span class="done">T-10</span> UX改善  │
+  │ manifest/SW  │  │ FCM連携     │  │ オンボ短縮等 │
+  └──────────────┘  └──────────────┘  └──────────────┘
+</div>
+
+<!-- ===== SPRINT 1 ===== -->
+<div class="phase">
+<div class="phase-header">
+  <span class="phase-label">SPRINT 1</span>
+  <span class="phase-title">提案の骨格を企画書レベルに引き上げる</span>
+  <span class="phase-desc">1週間 | 4タスク</span>
+</div>
+
+<!-- T-1 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-1</span>
+  <span class="task-title">AI提案プロンプトの全面改修</span>
+  <span class="badge b-gap">乖離: 06 AIパーソナライゼーション</span>
+  <span class="badge b-impact">Impact: 最大</span>
+  <span class="badge b-effort">3日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書の提案出力例：「17:30〜19:00 自宅近くの○○カフェで読書」「出張先の名古屋で空き時間にご当地グルメ」<br>
+  現状の提案：「最新業界レポートの深掘り分析（約90分）」— 時間帯なし、場所なし、具体的アクションなし</p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li><strong>システムプロンプトの再設計</strong>：以下の構造で提案を出力させる</li>
+    <li>出力フォーマットを JSON で厳密に定義（タイトル / ステップ配列 / 場所 / 所要時間 / カテゴリタグ）</li>
+    <li>Google Calendar の空き時間情報をコンテキストに含める（T-2と連動）</li>
+    <li>ユーザーの選択タグ全量をプロンプトに注入し、組み合わせで提案をパーソナライズ</li>
+    <li>3候補生成時に「インドア/アウトドア/学習」など異なるタイプを混ぜるルールを追加</li>
+  </ul>
+</div>
+
+<div class="code"><span class="cm">// 改修後のシステムプロンプト骨格</span>
+<span class="kw">const</span> systemPrompt = <span class="st">`
+あなたはHimafyの予定提案AIです。
+ユーザーの空き時間に合った、"今日すぐ実行できる"具体的な予定を3つ提案してください。
+
+## 入力情報
+- ユーザータグ: ${userTags.join(', ')}
+- カテゴリ: ${selectedCategory}
+- 空き時間: ${freeSlots.map(s => s.start + '〜' + s.end).join(', ')}
+- 居住地: ${user.location || '未設定'}
+- 天気: ${weather?.description || '不明'}
+- 過去の高評価タグ: ${topRatedTags.join(', ')}
+
+## 出力ルール（厳守）
+各提案は以下のJSON形式で返してください:
+{
+  "title": "動詞で始まる具体的なタイトル（20字以内）",
+  "description": "なぜこのユーザーにおすすめかの理由（50字以内）",
+  "steps": [
+    { "action": "具体的なアクション", "duration": "15分" }
+  ],
+  "location": "場所名（自宅/カフェ名/公園名/オンライン）",
+  "timeSlot": "14:00〜15:30",
+  "totalMinutes": 90,
+  "relatedTags": ["追加候補のタグ"]
+}
+
+## 禁止事項
+- 「〜について学ぶ」のような抽象的な提案
+- 空き時間を超える所要時間の提案
+- 3つの提案が同じタイプ（例:全部読書）にならないこと
+`</span>;
+</div>
+
+<div class="ac">
+  <h4>受け入れ基準</h4>
+  <ul>
+    <li>提案に「具体的な時間帯」が含まれている（例: 14:00〜15:30）</li>
+    <li>提案に「場所」が含まれている（例: 自宅、最寄りのカフェ）</li>
+    <li>提案に2〜3個の「具体的ステップ」が含まれている</li>
+    <li>3候補のうち少なくとも2つは異なるタイプの提案である</li>
+    <li>空き時間を超える提案が生成されないこと</li>
+  </ul>
+</div>
+</div>
+
+<!-- T-2 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-2</span>
+  <span class="task-title">Google Calendar空き時間の提案への反映</span>
+  <span class="badge b-gap">乖離: 06 空き時間→スロット自動算出</span>
+  <span class="badge b-effort">1.5日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書「空き時間 → 勤務時間外のスロットを自動算出」。Google Calendar連携は実装済みだが、提案生成時に空き時間情報が活用されていない。提案に具体的な時間帯が含まれていない。</p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li>Calendar APIから当日〜翌日の予定を取得し、空きスロットを計算するユーティリティを作成</li>
+    <li>最短30分以上の空きスロットを抽出し、AI提案のコンテキストに注入</li>
+    <li>Calendar未連携ユーザーには「空き時間を手動で入力」するフォールバックUIを提供</li>
+    <li>提案選択（「この予定にする」）時にCalendarに予定を実際に書き込むAPIを実装</li>
+  </ul>
+</div>
+
+<div class="code"><span class="cm">// lib/calendar.ts - 空き時間算出ロジック</span>
+<span class="kw">export async function</span> <span class="fn">getFreeSlots</span>(userId: string, date: Date) {
+  <span class="kw">const</span> events = <span class="kw">await</span> getCalendarEvents(userId, date);
+  <span class="kw">const</span> dayStart = setHours(date, 8);  <span class="cm">// 活動開始 8:00</span>
+  <span class="kw">const</span> dayEnd = setHours(date, 23);   <span class="cm">// 活動終了 23:00</span>
+
+  <span class="kw">const</span> slots = calculateGaps(events, dayStart, dayEnd);
+  <span class="kw">return</span> slots.filter(s => s.durationMinutes >= 30); <span class="cm">// 30分以上のみ</span>
+}
+
+<span class="cm">// 予定をCalendarに書き込み</span>
+<span class="kw">export async function</span> <span class="fn">addToCalendar</span>(userId: string, suggestion: Suggestion) {
+  <span class="kw">return await</span> calendar.events.insert({
+    calendarId: <span class="st">'primary'</span>,
+    requestBody: {
+      summary: suggestion.title,
+      description: suggestion.steps.map(s => <span class="st">`- ${s.action} (${s.duration})`</span>).join(<span class="st">'\n'</span>),
+      start: { dateTime: suggestion.startTime },
+      end: { dateTime: suggestion.endTime },
+    }
+  });
+}
+</div>
+
+<div class="ac">
+  <h4>受け入れ基準</h4>
+  <ul>
+    <li>Calendar連携済みユーザーの提案に、実際の空き時間帯が反映されている</li>
+    <li>「この予定にする」でGoogle Calendarに予定が書き込まれる</li>
+    <li>既存予定との重複が発生しないこと</li>
+    <li>Calendar未連携ユーザーにもフォールバックがあること</li>
+  </ul>
+</div>
+</div>
+
+<!-- T-3 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-3</span>
+  <span class="task-title">予定選択後の「タグ追加」フロー実装</span>
+  <span class="badge b-gap">乖離: 04 主要機能「予定からタグ追加」</span>
+  <span class="badge b-gap">乖離: 05 ユーザーフロー Step 5</span>
+  <span class="badge b-impact">Impact: 大</span>
+  <span class="badge b-effort">2日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書の主要機能「予定からタグ追加：予定を選択した後、関連するタグをプロフィールに追加登録可能。使うほどプロフィールが充実」<br>
+  企画書のユーザーフロー Step 5「タグ追加 + FB：予定から新タグ追加＆実行後にフィードバック」<br>
+  <strong>→ 現状、この機能が完全に欠落。フィードバックループが断絶している。</strong></p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li>「この予定にする」押下後に、確認画面 → タグ追加提案画面 を挟む</li>
+    <li>AI提案のレスポンスに含まれる <code>relatedTags</code> を表示し、ユーザーが追加したいものをタップで選択</li>
+    <li>選択されたタグはプロフィールに自動追加される</li>
+    <li>スキップも可能にする（毎回強制しない）</li>
+    <li>追加されたタグは設定画面のタグ一覧に反映</li>
+  </ul>
+</div>
+
+<div class="code"><span class="cm">// 予定確定 → タグ追加 → 完了のフロー</span>
+
+<span class="cm">// Step 1: ユーザーが「この予定にする」をタップ</span>
+<span class="kw">const</span> handleConfirm = <span class="kw">async</span> (suggestion) => {
+  <span class="kw">await</span> addSchedule(suggestion);           <span class="cm">// DBに保存</span>
+  <span class="kw">await</span> addToCalendar(user.id, suggestion); <span class="cm">// Calendar書き込み</span>
+
+  <span class="cm">// Step 2: タグ追加提案画面を表示</span>
+  <span class="kw">if</span> (suggestion.relatedTags?.length > 0) {
+    setShowTagSuggestion(<span class="kw">true</span>);
+    setSuggestedTags(suggestion.relatedTags);
+  } <span class="kw">else</span> {
+    finishFlow();
+  }
+};
+
+<span class="cm">// Step 3: タグ追加画面のUI</span>
+&lt;<span class="fn">TagSuggestionSheet</span>&gt;
+  &lt;<span class="fn">h3</span>&gt;関連タグを追加しますか？&lt;/<span class="fn">h3</span>&gt;
+  &lt;<span class="fn">p</span>&gt;選んだ予定に関連するタグです。追加すると次回の提案がより精確になります&lt;/<span class="fn">p</span>&gt;
+  {suggestedTags.map(tag =&gt; (
+    &lt;<span class="fn">TagChip</span> <span class="at">key</span>={tag} <span class="at">onToggle</span>={toggleTag} /&gt;
+  ))}
+  &lt;<span class="fn">Button</span>&gt;追加して完了&lt;/<span class="fn">Button</span>&gt;
+  &lt;<span class="fn">button</span>&gt;スキップ&lt;/<span class="fn">button</span>&gt;
+&lt;/<span class="fn">TagSuggestionSheet</span>&gt;
+</div>
+
+<div class="ac">
+  <h4>受け入れ基準</h4>
+  <ul>
+    <li>予定確定後にタグ追加提案が表示される</li>
+    <li>タグをタップするとプロフィールに追加される</li>
+    <li>設定画面のタグ一覧に反映される</li>
+    <li>スキップ可能であること</li>
+    <li>追加されたタグが次回のAI提案コンテキストに含まれること</li>
+  </ul>
+</div>
+</div>
+
+<!-- T-4 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-4</span>
+  <span class="task-title">フィードバック学習の可視化と提案反映</span>
+  <span class="badge b-gap">乖離: 04 パーソナライズ学習</span>
+  <span class="badge b-effort">1.5日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書「蓄積されたフィードバックとタグ履歴をもとにAIを継続チューニングし、提案の質を進化」。フィードバック画面（5段階評価）は存在するが、それが次回提案に反映される仕組みがなく、ユーザーにも「学習している」ことが伝わらない。</p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li><strong>バックエンド</strong>：フィードバック結果（評価+コメント+対象提案のタグ）をDBに蓄積</li>
+    <li><strong>プロンプト注入</strong>：直近10件の高評価/低評価タグ・提案傾向をシステムプロンプトに追加（T-1と連動）</li>
+    <li><strong>UI</strong>：ダッシュボードに「AIの理解度」ウィジェットを追加（例:「あなたの好みを12件のフィードバックから学習中」）</li>
+    <li>フィードバック送信後に「ありがとうございます。次回の提案に反映します」トーストを表示</li>
+  </ul>
+</div>
+
+<div class="code"><span class="cm">// AI提案時にフィードバック履歴をコンテキスト注入</span>
+<span class="kw">const</span> feedbackContext = <span class="kw">await</span> buildFeedbackContext(userId);
+
+<span class="cm">// feedbackContext の中身（例）</span>
+{
+  <span class="at">positivePatterns</span>: [<span class="st">"カフェ系の提案が高評価"</span>, <span class="st">"90分以上は低評価傾向"</span>],
+  <span class="at">recentHighRated</span>: [<span class="st">"読書"</span>, <span class="st">"カフェ巡り"</span>, <span class="st">"プログラミング"</span>],
+  <span class="at">recentLowRated</span>: [<span class="st">"掃除系"</span>, <span class="st">"長時間の学習"</span>],
+  <span class="at">totalFeedbacks</span>: 12
+}
+
+<span class="cm">// プロンプトに追記</span>
+<span class="kw">const</span> fbPrompt = <span class="st">`
+## ユーザーの好み傾向（フィードバック ${feedbackContext.totalFeedbacks}件から学習）
+- 高評価: ${feedbackContext.recentHighRated.join(', ')}
+- 低評価: ${feedbackContext.recentLowRated.join(', ')}
+- 傾向: ${feedbackContext.positivePatterns.join(', ')}
+→ 高評価タグに近い提案を優先し、低評価傾向は避けてください。
+`</span>;
+</div>
+
+<div class="ac">
+  <h4>受け入れ基準</h4>
+  <ul>
+    <li>高評価した提案に近いジャンルが次回提案で優先される</li>
+    <li>低評価した傾向の提案が減少する</li>
+    <li>ダッシュボードに学習状況が可視化されている</li>
+    <li>FB送信後のトースト表示がある</li>
+  </ul>
+</div>
+</div>
+</div>
+
+<!-- ===== SPRINT 2 ===== -->
+<div class="phase">
+<div class="phase-header">
+  <span class="phase-label">SPRINT 2</span>
+  <span class="phase-title">企画書のコア差別化「位置 × 天気」を実現</span>
+  <span class="phase-desc">1週間 | 3タスク</span>
+</div>
+
+<!-- T-5 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-5</span>
+  <span class="task-title">居住地の入力UI追加（設定 + オンボーディング）</span>
+  <span class="badge b-gap">乖離: 06 居住地→生活圏の施設優先</span>
+  <span class="badge b-effort">1.5日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書の入力データ7種のうち「居住地」「現在地」が完全に欠落。居住地を入力するUIが一切存在しない。</p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li><strong>設定画面</strong>：プロフィールセクションに「居住エリア」フィールドを追加（市区町村レベル）</li>
+    <li><strong>オンボーディング</strong>：短縮後のステップ内（T-10でのオンボーディング改修と連動）に居住エリア入力を組み込む</li>
+    <li>Google Maps Places APIの Autocomplete で市区町村を入力補助</li>
+    <li>DBのユーザーテーブルに <code>location</code>（テキスト）と <code>lat/lng</code>（座標）カラムを追加</li>
+    <li>任意入力とし、未入力でもサービス利用を妨げない</li>
+  </ul>
+</div>
+
+<div class="ac">
+  <h4>受け入れ基準</h4>
+  <ul>
+    <li>設定画面で居住エリアを入力・変更できる</li>
+    <li>Places APIで入力補助が動作する</li>
+    <li>入力した居住地がT-7の提案に反映される</li>
+  </ul>
+</div>
+</div>
+
+<!-- T-6 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-6</span>
+  <span class="task-title">天気API連携</span>
+  <span class="badge b-gap">乖離: 06 天気情報→屋内/屋外提案</span>
+  <span class="badge b-spec">技術スタック: Weather API</span>
+  <span class="badge b-effort">1日</span>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li>OpenWeatherMap API（Free tier: 1,000コール/日）を利用</li>
+    <li>ユーザーの居住地座標から当日〜翌日の天気を取得</li>
+    <li>Redisに天気データを30分間キャッシュ（API節約）</li>
+    <li>天気情報をAI提案のコンテキストに注入（雨→屋内提案優先 等）</li>
+  </ul>
+</div>
+
+<div class="code"><span class="cm">// lib/weather.ts</span>
+<span class="kw">export async function</span> <span class="fn">getWeather</span>(lat: number, lng: number) {
+  <span class="kw">const</span> cacheKey = <span class="st">`weather:${lat.toFixed(2)}:${lng.toFixed(2)}`</span>;
+  <span class="kw">const</span> cached = <span class="kw">await</span> redis.get(cacheKey);
+  <span class="kw">if</span> (cached) <span class="kw">return</span> JSON.parse(cached);
+
+  <span class="kw">const</span> res = <span class="kw">await</span> fetch(
+    <span class="st">`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${API_KEY}&lang=ja&units=metric`</span>
+  );
+  <span class="kw">const</span> data = <span class="kw">await</span> res.json();
+  <span class="kw">await</span> redis.setex(cacheKey, 1800, JSON.stringify(data)); <span class="cm">// 30分キャッシュ</span>
+  <span class="kw">return</span> data;
+}
+</div>
+</div>
+
+<!-- T-7 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-7</span>
+  <span class="task-title">提案への位置情報・天気の統合</span>
+  <span class="badge b-gap">乖離: 02 「居住地×位置×時間」</span>
+  <span class="badge b-impact">Impact: 大（差別化の核心）</span>
+  <span class="badge b-effort">2日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書のコンセプト3本柱の1つ「居住地 × 位置 × 時間 — 居住地・現在地と空き時間を考慮した実行可能な予定のみ提案」が丸ごと未実装。</p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li>T-5の居住地情報とT-6の天気データをT-1のプロンプトに統合</li>
+    <li>居住地周辺の具体的な施設名（公園、カフェ、図書館等）を Google Places API で取得し、提案に組み込む</li>
+    <li>天気に応じた提案ルール: 雨天→屋内系優先、晴天→屋外系も混ぜる</li>
+    <li>提案カードのUIに「📍 場所名」「🌤 天気」を表示</li>
+    <li>居住地未設定ユーザーには「オンライン」「自宅」中心の提案にフォールバック</li>
+  </ul>
+</div>
+
+<div class="risk">
+  <h4>リスクと対策</h4>
+  <p><strong>Places APIのコスト</strong>：Autocomplete は$2.83/1000リクエスト。初期段階は「市区町村＋ジャンル」のテンプレート提案（例:「○○市のカフェ」）で代替し、ユーザー数増加後にPlace Details（個別店舗名）へ段階的に移行する。</p>
+</div>
+</div>
+</div>
+
+<!-- ===== SPRINT 3 ===== -->
+<div class="phase">
+<div class="phase-header">
+  <span class="phase-label">SPRINT 3</span>
+  <span class="phase-title">配信基盤とUX仕上げ</span>
+  <span class="phase-desc">1週間 | 3タスク</span>
+</div>
+
+<!-- T-8 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-8</span>
+  <span class="task-title">PWA対応</span>
+  <span class="badge b-gap">乖離: 09 技術スタック「PWA対応」</span>
+  <span class="badge b-effort">1.5日</span>
+</div>
+
+<div class="task-section">
+  <h4>企画書との乖離</h4>
+  <p>企画書「まずWebアプリ（PWA）として提供開始し、検証後にスマホネイティブアプリへ展開」。現状 manifest.json なし、Service Worker 未登録、apple-touch-icon なし。</p>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li><strong>next-pwa</strong> または <strong>@serwist/next</strong> パッケージを導入</li>
+    <li><code>manifest.json</code> の作成（name, icons, theme_color, start_url, display: standalone）</li>
+    <li>Service Worker でオフラインフォールバックページを登録</li>
+    <li>apple-touch-icon（180x180）と各サイズ favicon の設置</li>
+    <li>theme-color メタタグの追加（ブランドカラー #4f46e5）</li>
+    <li>「ホーム画面に追加」のインストールバナーを実装</li>
+  </ul>
+</div>
+
+<div class="code"><span class="cm">// public/manifest.json</span>
+{
+  <span class="at">"name"</span>: <span class="st">"Himafy"</span>,
+  <span class="at">"short_name"</span>: <span class="st">"Himafy"</span>,
+  <span class="at">"description"</span>: <span class="st">"暇な時間を、あなたらしい時間へ"</span>,
+  <span class="at">"start_url"</span>: <span class="st">"/dashboard"</span>,
+  <span class="at">"display"</span>: <span class="st">"standalone"</span>,
+  <span class="at">"background_color"</span>: <span class="st">"#f8fafc"</span>,
+  <span class="at">"theme_color"</span>: <span class="st">"#4f46e5"</span>,
+  <span class="at">"icons"</span>: [
+    { <span class="at">"src"</span>: <span class="st">"/icons/icon-192.png"</span>, <span class="at">"sizes"</span>: <span class="st">"192x192"</span>, <span class="at">"type"</span>: <span class="st">"image/png"</span> },
+    { <span class="at">"src"</span>: <span class="st">"/icons/icon-512.png"</span>, <span class="at">"sizes"</span>: <span class="st">"512x512"</span>, <span class="at">"type"</span>: <span class="st">"image/png"</span> }
+  ]
+}
+</div>
+
+<div class="ac">
+  <h4>受け入れ基準</h4>
+  <ul>
+    <li>Chrome DevTools の Lighthouse PWA チェックが全項目パスする</li>
+    <li>モバイルで「ホーム画面に追加」が動作する</li>
+    <li>オフライン時にフォールバックページが表示される</li>
+  </ul>
+</div>
+</div>
+
+<!-- T-9 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-9</span>
+  <span class="task-title">Push通知（FCM）の導入</span>
+  <span class="badge b-gap">乖離: 09 技術スタック「Push通知(FCM)」</span>
+  <span class="badge b-effort">2日</span>
+</div>
+
+<div class="task-section">
+  <h4>実装指示</h4>
+  <ul>
+    <li>Firebase Cloud Messaging (FCM) をセットアップ</li>
+    <li>Service Worker に FCM の受信ハンドラを登録</li>
+    <li>通知の用途：「空き時間が見つかりました！提案を見る？」（Calendar連動）</li>
+    <li>設定画面に通知ON/OFFトグルを追加</li>
+    <li>通知許可ダイアログは初回ログイン時ではなく、2回目以降の利用時に表示（初回はオンボーディングに集中させる）</li>
+  </ul>
+</div>
+</div>
+
+<!-- T-10 -->
+<div class="task">
+<div class="task-top">
+  <span class="task-id">T-10</span>
+  <span class="task-title">UX乖離の一括修正</span>
+  <span class="badge b-gap">乖離: 複数</span>
+  <span class="badge b-effort">2日</span>
+</div>
+
+<div class="task-section">
+  <h4>修正項目一覧</h4>
+  <ul>
+    <li><strong>オンボーディング短縮</strong>：8ステップ → 3ステップ（基本情報+興味+カレンダー連携）。企画書のカテゴリ名との整合: 「やりたいこと」（企画書表記）= 現状の「目標」に統一</li>
+    <li><strong>スキップボタンの挙動統一</strong>：全ステップでスキップ可能にする</li>
+    <li><strong>「提案」タブの挙動修正</strong>：カテゴリ未指定時にカテゴリ選択画面を表示（現状はいきなり「趣味の提案」が始まる）</li>
+    <li><strong>提案カードUIの改善</strong>：時間帯・場所・ステップをカード内に構造的に表示</li>
+    <li><strong>ダッシュボードに手動予定追加ボタン追加</strong></li>
+    <li><strong>予定確定後のフィードバック</strong>：トースト表示 → ダッシュボード遷移 → ハイライト表示</li>
+    <li><strong>設定画面にログアウト・アカウント管理セクション追加</strong></li>
+    <li><strong>ランディングページ強化</strong>：3ステップ説明・提案プレビュー・対応カテゴリ一覧を追加</li>
+  </ul>
+</div>
+</div>
+</div>
+
+<!-- ===== SUMMARY ===== -->
+<div class="phase">
+<div class="phase-header">
+  <span class="phase-title">企画書乖離の解消マップ</span>
+</div>
+
+<table class="summary-table">
+<tr><th>企画書セクション</th><th>乖離項目</th><th>担当タスク</th><th>Sprint</th></tr>
+<tr><td>02 サービス概要</td><td>「居住地×位置×時間」が未実装</td><td>T-5, T-7</td><td>S2</td></tr>
+<tr><td>02 サービス概要</td><td>「学習進化」が見えない</td><td>T-4</td><td>S1</td></tr>
+<tr><td>03 タグベース設計</td><td>タグ選択UIのデザイン差異</td><td>T-10</td><td>S3</td></tr>
+<tr><td>04 主要機能</td><td>「予定からタグ追加」が欠落</td><td>T-3</td><td>S1</td></tr>
+<tr><td>04 主要機能</td><td>ワンタップでCalendar登録されない</td><td>T-2</td><td>S1</td></tr>
+<tr><td>04 主要機能</td><td>パーソナライズ学習が機能していない</td><td>T-4</td><td>S1</td></tr>
+<tr><td>05 ユーザーフロー</td><td>Step 5（タグ追加+FB）が断絶</td><td>T-3, T-4</td><td>S1</td></tr>
+<tr><td>06 AIパーソナライズ</td><td>居住地コンテキスト欠落</td><td>T-5, T-7</td><td>S2</td></tr>
+<tr><td>06 AIパーソナライズ</td><td>天気情報未活用</td><td>T-6, T-7</td><td>S2</td></tr>
+<tr><td>06 AIパーソナライズ</td><td>空き時間の自動算出が提案に未反映</td><td>T-2</td><td>S1</td></tr>
+<tr><td>06 AIパーソナライズ</td><td>提案出力が抽象的（時間帯・場所なし）</td><td>T-1</td><td>S1</td></tr>
+<tr><td>06 AIパーソナライズ</td><td>FB履歴が次回提案に未反映</td><td>T-4</td><td>S1</td></tr>
+<tr><td>06 AIパーソナライズ</td><td>タグ追加履歴で興味変化を追跡</td><td>T-3</td><td>S1</td></tr>
+<tr><td>09 技術スタック</td><td>PWA未対応</td><td>T-8</td><td>S3</td></tr>
+<tr><td>09 技術スタック</td><td>Google Maps API未統合</td><td>T-5, T-7</td><td>S2</td></tr>
+<tr><td>09 技術スタック</td><td>Weather API未統合</td><td>T-6</td><td>S2</td></tr>
+<tr><td>09 技術スタック</td><td>Push通知(FCM)未実装</td><td>T-9</td><td>S3</td></tr>
+</table>
+</div>
+
+<!-- PM CLOSING -->
+<div class="pm-note" style="margin-top: 40px;">
+  <h3>PMからの補足</h3>
+  <p><strong>Sprint 1が最も重要です。</strong>ここで「提案の具体性」と「フィードバックループ」が動き始めれば、企画書が描いている「使うたびにタグが増え、AIが学習し、提案精度が向上する」という好循環が初めて成立します。</p>
+  <p style="margin-top:8px;">Sprint 2の位置情報・天気は差別化要素ですが、Sprint 1の提案品質が低いままだと「位置情報を使って抽象的な提案をする」だけになってしまいます。順番を守ってください。</p>
+  <p style="margin-top:8px;">Sprint 3のPWA・Push通知はリテンション施策です。ユーザーに「また使いたい」と思ってもらえるだけの提案品質がSprint 1-2で実現できてから意味を持ちます。</p>
+  <p style="margin-top:8px;"><strong>計測指標：</strong>Sprint 1完了時点で「提案受け入れ率（"この予定にする"のCTR）」が現状から有意に上昇していることを確認してからSprint 2に進んでください。もし改善が見られなければ、T-1のプロンプトをさらにチューニングするサブスプリントを挟みます。</p>
+</div>
+
+</div>
+</body>
+</html>
