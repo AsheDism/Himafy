@@ -125,6 +125,8 @@ export async function POST(request: Request) {
     address: s.address,
     nearest_station: s.nearestStation,
     image_url: imageUrls[i],
+    budget_min: s.budgetMin,
+    budget_max: s.budgetMax,
     ai_provider: result.provider,
     ai_model: result.model,
     ai_raw_response: JSON.parse(JSON.stringify(s)),
