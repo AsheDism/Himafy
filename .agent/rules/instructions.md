@@ -26,7 +26,7 @@
 prompts/
  └── YYYY-MM-DD/
      ├── AsheDism.md       # AsheDism（Claude Code使用）のプロンプト履歴
-     └── <GitHubName>.md   # もう一人の開発者（Anti-Gravity使用）のプロンプト履歴
+     └── 371038-tooth.md   # もう一人の開発者（Anti-Gravity使用）のプロンプト履歴
 ```
 
 - 日付ごとにディレクトリを作成
