@@ -27,6 +27,8 @@ export interface AiSuggestionItem {
   relatedTagSlugs: string[];
   steps: AiSuggestionStep[];
   timeSlot: string | null; // e.g. "14:00〜15:30"
+  budgetMin: number;
+  budgetMax: number;
 }
 
 export interface AiSuggestionResult {

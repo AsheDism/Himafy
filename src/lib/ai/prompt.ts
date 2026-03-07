@@ -16,20 +16,50 @@ export function getCategoryLabel(slug: string): string {
 }
 
 export function buildSystemPrompt(params: AiGenerateParams): string {
-  let prompt = `予定提案AI。日本語でJSON応答。具体的な実在の場所・店名を使う。imageSearchQueryは必ず英語で、場所名がある場合は「場所名 特徴」(例:"Blue Bottle Coffee Shibuya","Yoyogi Park cherry blossom","Tsukiji fish market")、場所なしなら活動の英語キーワード。stepsは5-8個で具体的な行動を細かく書く(例:"駅から店まで徒歩移動","メニューを選ぶ","注文する","写真を撮る","食べる","会計")。バリエーション確保。`;
+  let prompt = `あなたはHimafyの予定提案AIです。日本語でJSON応答してください。
+ユーザーの空き時間に合った、"今日すぐ実行できる"具体的で実在する場所・店名を使った予定を提案してください。
+各提案の「予算感(budgetMin, budgetMax)」を円単位で必ず数値で推測して回答に含めてください。無料(0円)の場合のみ両方0にします。
+imageSearchQueryは必ず英語で、場所名がある場合は「場所名 特徴」(例:"Blue Bottle Coffee Shibuya","Yoyogi Park cherry blossom","Tsukiji fish market")、場所なしなら活動の英語キーワードを設定してください。
+
+## 出力ルール（厳守）
+各提案は以下のJSON形式で返してください:
+{
+  "title": "動詞で始まる具体的なタイトル（20字以内）",
+  "description": "なぜこのユーザーにおすすめかの理由（50字以内）",
+  "steps": [
+    { "action": "具体的なアクション", "duration": "15分" }
+  ],
+  "location": "場所名（自宅/具体名/公園名/オンライン）",
+  "address": "住所（わかれば）",
+  "nearestStation": "最寄り駅（わかれば）",
+  "timeSlot": "14:00〜15:30",
+  "totalMinutes": 90,
+  "budgetMin": 1000,
+  "budgetMax": 2000,
+  "imageSearchQuery": "search query in english",
+  "relatedTags": ["追加候補のタグ"]
+}
+
+## 禁止事項
+- 「〜について学ぶ」のような抽象的な提案
+- 空き時間を超える所要時間の提案
+- 提案が同じタイプ（例:全部読書）にならないこと
+- バリエーションを確保すること`;
 
   if (params.freeSlots && params.freeSlots.length > 0) {
     const slots = params.freeSlots.map((s) => {
       const fmt = (d: Date) => `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-      return `${fmt(new Date(s.start))}-${fmt(new Date(s.end))}`;
+      return `${fmt(new Date(s.start))}〜${fmt(new Date(s.end))}`;
     });
-    prompt += `\n空き:${slots.join(",")}。timeSlotをHH:MM〜HH:MMで設定。`;
+    prompt += `\n\n## 空き時間情報\n- ${slots.join(", ")}\n※提案のtimeSlotはこの範囲内に収めてください。`;
   }
 
   if (params.feedbackContext && params.feedbackContext.totalFeedbacks > 0) {
     const fc = params.feedbackContext;
-    if (fc.highRated.length > 0) prompt += `\n好み:${fc.highRated.join(",")}`;
-    if (fc.lowRated.length > 0) prompt += `\n避ける:${fc.lowRated.join(",")}`;
+    prompt += `\n\n## ユーザーの好み（過去のフィードバックから）`;
+    if (fc.highRated.length > 0) prompt += `\n- 高評価の傾向: ${fc.highRated.join(", ")}`;
+    if (fc.lowRated.length > 0) prompt += `\n- 避けるべき傾向: ${fc.lowRated.join(", ")}`;
+    prompt += `\n→ 高評価に近い提案を優先し、低評価傾向は避けてください。`;
   }
 
   return prompt;
@@ -38,10 +68,13 @@ export function buildSystemPrompt(params: AiGenerateParams): string {
 export function buildUserPrompt(params: AiGenerateParams): string {
   const categoryLabel = getCategoryLabel(params.categorySlug);
   const exclude = params.excludeTitles?.length
-    ? ` 除外:${params.excludeTitles.join(",")}`
+    ? `\n- 除外タイトル: ${params.excludeTitles.join(", ")}`
     : "";
-  const variation = params.variationHint ? ` 方向性:${params.variationHint}` : "";
+  const variation = params.variationHint ? `\n- 方向性: ${params.variationHint}` : "";
 
-  return `カテゴリ:${categoryLabel} タグ:${params.userTags.join(",")} ${params.count}件${exclude}${variation}
-JSON:{"suggestions":[{"title":"","description":"","estimatedDurationMin":0,"location":null,"address":null,"nearestStation":null,"imageSearchQuery":"","relatedTagSlugs":[],"steps":[{"action":"","durationMin":0}],"timeSlot":null}]}`;
+  return `以下の条件で ${params.count}件 の予定を提案してください。
+- カテゴリ: ${categoryLabel}
+- ユーザータグ: ${params.userTags.join(", ")}${exclude}${variation}
+
+回答は {"suggestions": [...]} の形式のJSONのみを出力してください。`;
 }
