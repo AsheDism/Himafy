@@ -20,6 +20,8 @@ type Suggestion = {
   address: string | null;
   nearest_station: string | null;
   image_url: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
   ai_raw_response: {
     steps?: Step[];
     timeSlot?: string | null;
@@ -386,6 +388,13 @@ function SuggestContent() {
                       {state.accepted.location}
                     </span>
                   )}
+                  {(state.accepted.budget_min !== null && state.accepted.budget_max !== null) && (
+                    <span className="inline-flex items-center gap-1 text-xs text-indigo-500 bg-indigo-50 rounded-full px-2.5 py-1">
+                      予算: {state.accepted.budget_min === 0 && state.accepted.budget_max === 0
+                        ? "無料"
+                        : `${state.accepted.budget_min.toLocaleString()}円〜${state.accepted.budget_max.toLocaleString()}円`}
+                    </span>
+                  )}
                 </div>
                 {(state.accepted.address || state.accepted.nearest_station) && (
                   <div className="border-t border-indigo-200 pt-2 space-y-1">
@@ -649,6 +658,13 @@ function SuggestContent() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                               </svg>
                               {s.location}
+                            </span>
+                          )}
+                          {(s.budget_min !== null && s.budget_max !== null) && (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-100 rounded-full px-2.5 py-1">
+                              予算: {s.budget_min === 0 && s.budget_max === 0
+                                ? "無料"
+                                : `${s.budget_min.toLocaleString()}円〜${s.budget_max.toLocaleString()}円`}
                             </span>
                           )}
                         </div>
